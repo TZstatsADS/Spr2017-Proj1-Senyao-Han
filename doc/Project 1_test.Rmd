@@ -66,7 +66,7 @@ main.page <- read_html(x = "http://www.presidency.ucsb.edu/inaugurals.php")
 # f.speechlinks is a function for extracting links from the list of speeches. 
 inaug=f.speechlinks(main.page)
 #head(inaug)
-as.Date(inaug[,1], format="%B %e, %Y")
+# as.Date(inaug[,1], format="%B %e, %Y")
 inaug=inaug[-nrow(inaug),] # remove the last line, irrelevant due to error.
 ```
 
@@ -148,7 +148,7 @@ sentence.list1=
 ## Create a dataframe consists of sentiments percentage for every president
 
 ```{r}
-     # create a function to calculate percentage for every sentiment
+# create a function to calculate percentage for every sentiment
 percentile<-function(x){
   as.data.frame(round(table(x)/length(x),2))
 }
@@ -158,7 +158,7 @@ sentipercent<-tapply(sentence.list1$polarity, sentence.list1$Preterm, percentile
 ```
 
 ```{r, message=FALSE, warning=FALSE}
-    # generate a data frame to store percentage we calculated above
+# generate a data frame to store percentage we calculated above
 sentidata<-c()
  for (i in 1:length(sentipercent)){
    sentidata<-rbind(sentidata, sentipercent[[i]][,2])
@@ -176,7 +176,10 @@ rownames(sentidata2)<-1:174
 
 ## How these three sentiments change for presidents in order? 
 
-In all speeches, there are two exceptional cases. One is James Madison on his second inaugural speech, the other is Abraham Lincoln on his second inaugural speech. They were more negative in their speeches.
+We can see from the following graph that case 7 and case 20 are exceptional cases, in which percentage of negative sentiment is higher than the percentage of positive sentiment. Case 7 is James Madison on his second inaugural speech, case 20 is Abraham Lincoln on his second inaugural speech. Thus we can reasonabelly conclude that they were more negative in their speeches.
+
+Next step, I want to dig in these two inaugural speeches to see if there some specific information can tell why they were more negative at that time. 
+
 
 ```{r, fig.width=10, fig.height=4}
 ggplot(sentidata2,aes(x=Order, y=value, group=variable, col=variable))+geom_line(size=1)+labs(y="Percentage", x="President in Order",title="Sentiment Trend")+scale_x_continuous(breaks = seq(1,58,1))+ theme(axis.text.x=element_text(angle = 60, vjust = 0.5))
