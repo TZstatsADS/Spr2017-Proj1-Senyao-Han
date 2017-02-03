@@ -8,10 +8,10 @@ This project is mainly about sentiment analysis on presidents' inaugural speech.
 Generally, a president is more positive in his inaugural speech. However, there are two exceptional cases. One is James Madison on his second inaugural speech, the other is Abraham Lincoln on his second inaugural speech. These two turn out to be more negative cases. Thus, I take these two cases for deepen analysis to see if I can find something illuminating in these speeches.
 
 # Step 0: check and install needed packages. Load the libraries and functions. 
-
 ```{r, message=FALSE, warning=FALSE}
-setwd("C:/Users/sh355/Documents/GitHub/Spr2017-Proj1-Senyao-Han")
+setwd("~/GitHub/Spr2017-Proj1-Senyao-Han")
 ```
+
 ```{r, message=FALSE, warning=FALSE}
 packages.used=c("rvest", "tibble", "qdap", 
                 "sentimentr", "gplots", "dplyr",
@@ -47,12 +47,12 @@ library("wordcloud")
 library("reshape2")
 
 
-source("C:/Users/sh355/Documents/GitHub/Spr2017-Proj1-Senyao-Han/lib/plotstacked.R")
-source("C:/Users/sh355/Documents/GitHub/Spr2017-Proj1-Senyao-Han/lib/speechFuncs.R")
+source("../lib/plotstacked.R")
+source("../lib/speechFuncs.R")
 ```
 
 ```{r, message=FALSE, warning=FALSE}
-install.packages("C:/Users/sh355/Documents/GitHub/Spr2017-Proj1-Senyao-Han/lib/sentiment_0.1.tar.gz", repos = NULL, type="source")
+install.packages("../lib/sentiment_0.1.tar.gz", repos = NULL, type="source")
 library(sentiment)
 ```
 # Step 1: Data harvest: scrap speech URLs.
@@ -178,7 +178,7 @@ rownames(sentidata2)<-1:174
 
 In all speeches, there are two exceptional cases. One is James Madison on his second inaugural speech, the other is Abraham Lincoln on his second inaugural speech. They were more negative in their speeches.
 
-```{r, fig.width=10}
+```{r, fig.width=10, fig.height=4}
 ggplot(sentidata2,aes(x=Order, y=value, group=variable, col=variable))+geom_line(size=1)+labs(y="Percentage", x="President in Order",title="Sentiment Trend")+scale_x_continuous(breaks = seq(1,58,1))+ theme(axis.text.x=element_text(angle = 60, vjust = 0.5))
 orderdata$Preterm[7];orderdata$Preterm[20]
 ```
