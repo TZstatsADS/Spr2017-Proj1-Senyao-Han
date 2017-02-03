@@ -1,0 +1,287 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This project is mainly about sentiment analysis on presidents' inaugural speech. I want to know whether a president is more positive or more negative. By utilizing R package - sentiment, I chose three sentiments including positive, negative and neutral to see the percentile each sentiment accounts for in a speech. 
+
+Generally, a president is more positive in his inaugural speech. However, there are two exceptional cases. One is James Madison on his second inaugural speech, the other is Abraham Lincoln on his second inaugural speech. These two turn out to be more negative cases. Thus, I take these two cases for deepen analysis to see if I can find something illuminating in these speeches.
+
+# Step 0: check and install needed packages. Load the libraries and functions. 
+
+```{r, message=FALSE, warning=FALSE}
+setwd("C:/Users/sh355/Documents/GitHub/Spr2017-Proj1-Senyao-Han")
+```
+```{r, message=FALSE, warning=FALSE}
+packages.used=c("rvest", "tibble", "qdap", 
+                "sentimentr", "gplots", "dplyr",
+                "tm", "syuzhet", "factoextra", 
+                "beeswarm", "scales", "RColorBrewer",
+                "RANN", "topicmodels", "rJava", "wordcloud", "reshape2")
+
+# check packages that need to be installed.
+packages.needed=setdiff(packages.used, 
+                        intersect(installed.packages()[,1], 
+                                  packages.used))
+# install additional packages
+if(length(packages.needed)>0){
+  install.packages(packages.needed, dependencies = TRUE)
+}
+
+# load packages
+library("rvest")
+library("rJava")
+library("tibble")
+library("qdap")
+library("gplots")
+library("dplyr")
+library("tm")
+library("syuzhet")
+library("factoextra")
+library("beeswarm")
+library("scales")
+library("RColorBrewer")
+library("RANN")
+library("topicmodels")
+library("wordcloud")
+library("reshape2")
+
+
+source("C:/Users/sh355/Documents/GitHub/Spr2017-Proj1-Senyao-Han/lib/plotstacked.R")
+source("C:/Users/sh355/Documents/GitHub/Spr2017-Proj1-Senyao-Han/lib/speechFuncs.R")
+```
+
+```{r, message=FALSE, warning=FALSE}
+install.packages("C:/Users/sh355/Documents/GitHub/Spr2017-Proj1-Senyao-Han/lib/sentiment_0.1.tar.gz", repos = NULL, type="source")
+library(sentiment)
+```
+# Step 1: Data harvest: scrap speech URLs.
+
+For this project, we selected all inaugural addresses of past presidents. 
+
+```{r, message=FALSE, warning=FALSE}
+### Inauguaral speeches
+main.page <- read_html(x = "http://www.presidency.ucsb.edu/inaugurals.php")
+# Get link URLs
+# f.speechlinks is a function for extracting links from the list of speeches. 
+inaug=f.speechlinks(main.page)
+#head(inaug)
+as.Date(inaug[,1], format="%B %e, %Y")
+inaug=inaug[-nrow(inaug),] # remove the last line, irrelevant due to error.
+```
+
+# Step 2: Using speech metadata, we prepared CSV data sets for the speeches we will scrap. 
+
+```{r}
+inaug.list=read.csv("../data/inauglist.csv", stringsAsFactors = FALSE)
+colnames(inaug.list)<-c("President", "File", "Term", "Party", "Date", "Words", "Win")
+```
+
+# Step 3: scrap the texts of speeches from the speech URLs.
+
+```{r}
+speeches.list=inaug.list
+speeches.list$type=rep("inaug", nrow(inaug.list))
+speeches.url=inaug
+speeches.list=cbind(speeches.list, speeches.url)
+```
+
+```{r}
+# Loop over each row in speech.list
+speeches.list$fullspeeches=NA
+for(i in seq(nrow(speeches.list))) {
+  text <- read_html(speeches.list$urls[i]) %>% # load the page
+    html_nodes(".displaytext") %>% # isloate the text
+    html_text() # get the text
+  speeches.list$fullspeeches[i]=text
+  # Create the file name
+  filename <- paste0("../data/InauguralSpeeches/", 
+                     speeches.list$type[i],
+                     speeches.list$File[i], "-", 
+                     speeches.list$Term[i], ".txt")
+  sink(file = filename) %>% # open file to write 
+  cat(text)  # write the file
+  sink() # close the file
+}
+```
+
+# Step 4: data Processing --- generate list of sentences and corresponding sentiments
+
+We will use sentences as units of analysis for this project, as sentences are natural languge units for organizing thoughts and ideas. For each extracted sentence, we apply sentiment analysis using R package-sentiment. This package has a list of English words and their associations with six basic emotions (anger, fear, disgust, surprise, sadness and joy) and three sentiments (negative, positive and neutral). 
+
+In this case, my analysis only focuses on three sentiments. 
+
+We assign an sequential id to each sentence in a speech (`sent.id`) and also calculated the number of words in each sentence as *sentence length* (`word.count`).
+
+```{r, message=FALSE, warning=FALSE}
+sentence.list1=NULL
+for(i in 1:nrow(speeches.list)){
+  sentences1=sent_detect(speeches.list$fullspeeches[i],
+                        endmarks = c("?", ".", "!", "|",";"))
+  if(length(sentences1)>0){
+    # generate postive or negative or neutral sentiment
+    class_pol2 = classify_polarity(sentences1, algorithm="bayes")
+    polarity2 = class_pol2[,4]
+    word.count=word_count(sentences1)
+    # colnames(emotions)=paste0("emo.", colnames(emotions))
+    # in case the word counts are zeros?
+    sentence.list1=rbind(sentence.list1, 
+                        cbind(speeches.list[i,-ncol(speeches.list)],
+                              sentences=as.character(sentences1), 
+                              polarity=polarity2,
+                              word.count,
+                              sent.id=1:length(sentences1)
+                              )
+    )
+  }
+}
+```
+
+```{r}
+sentence.list1=
+  sentence.list1%>%
+  filter(!is.na(word.count)) 
+```
+
+# Step 5: Data analysis --- sentiment analsis
+
+## Create a dataframe consists of sentiments percentage for every president
+
+```{r}
+     # create a function to calculate percentage for every sentiment
+percentile<-function(x){
+  as.data.frame(round(table(x)/length(x),2))
+}
+sentence.list1<-mutate(sentence.list1, Preterm=paste0(President, Term))
+sentence.list1$Preterm<-factor(sentence.list1$Preterm)
+sentipercent<-tapply(sentence.list1$polarity, sentence.list1$Preterm, percentile)
+```
+
+```{r, message=FALSE, warning=FALSE}
+    # generate a data frame to store percentage we calculated above
+sentidata<-c()
+ for (i in 1:length(sentipercent)){
+   sentidata<-rbind(sentidata, sentipercent[[i]][,2])
+ }
+sentidata<-as.data.frame(cbind(names(sentipercent), sentidata))
+colnames(sentidata)<-c("Preterm", "Negative", "Neutral", "Positive")
+orderdata<-as.data.frame(cbind(as.vector(unique(sentence.list1$Preterm)), 1:58))
+colnames(orderdata)<-c("Preterm", "Order")
+orderdata$Order<-as.numeric(as.character(orderdata$Order))
+sentidata<-merge(orderdata,sentidata,by="Preterm")
+sentidata2<-melt(sentidata, id=c("Preterm","Order"))
+sentidata2<-sentidata2[order(sentidata2$Order),]
+rownames(sentidata2)<-1:174
+```
+
+## How these three sentiments change for presidents in order? 
+
+In all speeches, there are two exceptional cases. One is James Madison on his second inaugural speech, the other is Abraham Lincoln on his second inaugural speech. They were more negative in their speeches.
+
+```{r, fig.width=10}
+ggplot(sentidata2,aes(x=Order, y=value, group=variable, col=variable))+geom_line(size=1)+labs(y="Percentage", x="President in Order",title="Sentiment Trend")+scale_x_continuous(breaks = seq(1,58,1))+ theme(axis.text.x=element_text(angle = 60, vjust = 0.5))
+orderdata$Preterm[7];orderdata$Preterm[20]
+```
+
+### Specific sentiment analysis on inaugural speech of James Madison on his second term
+
+```{r}
+sometext=sent_detect(speeches.list$fullspeeches[7],
+                        endmarks = c("?", ".", "!", "|",";"))
+```
+```{r}
+# classify polarity
+class_pol1 = classify_polarity(sometext, algorithm="bayes")
+# get polarity best fit
+polarity1 = class_pol1[,4]
+```
+```{r}
+# data frame with results
+sent_df1 = data.frame(text=sometext, polarity=polarity1, stringsAsFactors=FALSE)
+```
+```{r}
+# plot distribution of polarity
+ggplot(sent_df1, aes(x=polarity1)) +
+geom_bar(aes(y=..count.., fill=polarity1)) +
+scale_fill_brewer(palette="RdGy") +
+labs(x="polarity categories", y="number of sentences")
+```
+
+
+```{r, warning=FALSE}
+# separating text by emotion
+emos1 = levels(factor(sent_df1$polarity))
+labels <- lapply(emos1, function(x) paste(x,format(round((length((sent_df1[sent_df1$polarity ==x,])$text)/length(sent_df1$polarity)*100),2),nsmall=2),"%"))
+nemo1 = length(emos1)
+emo.docs1 = rep("", nemo1)
+for (i in 1:nemo1)
+{
+   tmp1 = sometext[polarity1 == emos1[i]]
+   emo.docs1[i] = paste(tmp1, collapse=" ")
+}
+
+# remove stopwords
+emo.docs1 = removeWords(emo.docs1, stopwords("english"))
+# create corpus
+corpus1 = Corpus(VectorSource(emo.docs1))
+tdm1 = TermDocumentMatrix(corpus1)
+tdm1 = as.matrix(tdm1)
+colnames(tdm1) = labels
+
+# comparison word cloud
+comparison.cloud(tdm1, colors = brewer.pal(nemo1, "Dark2"),
+   scale = c(3,.5), random.order = FALSE, title.size = 1.5)
+```
+  
+  In this plot, three colors represent three sentiments. Purple for positive, green for negative and orange for neutral. Also, there are sentiment labels followed by their corresponding percentage.
+  
+  There are some words such as "british", "battle", "savage", "compelled", "success" which can tell what it was happening at that time. We know that James Madison announced the War of 1812, which is the second war of independence between American and British. Thus, It's reasonable we can find a lot of negative in his speech.
+
+### Specific sentiment analysis on inaugural speech of Abraham Lincoln on his second term
+
+```{r}
+sometext=sent_detect(speeches.list$fullspeeches[20],
+                        endmarks = c("?", ".", "!", "|",";"))
+```
+```{r}
+# classify polarity
+class_pol1 = classify_polarity(sometext, algorithm="bayes")
+# get polarity best fit
+polarity1 = class_pol1[,4]
+```
+```{r}
+# data frame with results
+sent_df1 = data.frame(text=sometext, polarity=polarity1, stringsAsFactors=FALSE)
+```
+```{r}
+# plot distribution of polarity
+ggplot(sent_df1, aes(x=polarity1)) +
+geom_bar(aes(y=..count.., fill=polarity1)) +
+scale_fill_brewer(palette="RdGy") +
+labs(x="polarity categories", y="number of sentences")
+```
+```{r, warning=FALSE}
+# separating text by emotion
+emos1 = levels(factor(sent_df1$polarity))
+labels <- lapply(emos1, function(x) paste(x,format(round((length((sent_df1[sent_df1$polarity ==x,])$text)/length(sent_df1$polarity)*100),2),nsmall=2),"%"))
+nemo1 = length(emos1)
+emo.docs1 = rep("", nemo1)
+for (i in 1:nemo1)
+{
+   tmp1 = sometext[polarity1 == emos1[i]]
+   emo.docs1[i] = paste(tmp1, collapse=" ")
+}
+
+# remove stopwords
+emo.docs1 = removeWords(emo.docs1, stopwords("english"))
+# create corpus
+corpus1 = Corpus(VectorSource(emo.docs1))
+tdm1 = TermDocumentMatrix(corpus1)
+tdm1 = as.matrix(tdm1)
+colnames(tdm1) = labels
+
+# comparison word cloud
+comparison.cloud(tdm1, colors = brewer.pal(nemo1, "Dark2"),
+   scale = c(3,.5), random.order = FALSE, title.size = 1.5)
+```
+  There are some words such as "conflict", "war", "battle" which give us an idea that there may be a war. Actually, there is a war, that is called the Civil War and no wonder there are more negative words in his speech.
