@@ -4,7 +4,7 @@ library(RColorBrewer)
 library(dplyr)
 library(tidytext)
 
-folder.path="../data/InauguralSpeeches/"
+folder.path="C:/Users/sh355/Documents/GitHub/Spr2017-Proj1-Senyao-Han/data/InauguralSpeeches/"
 speeches=list.files(path = folder.path, pattern = "*.txt")
 prez.out=substr(speeches, 6, nchar(speeches)-4)
 
